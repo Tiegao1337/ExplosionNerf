@@ -9,6 +9,8 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.RespawnAnchor;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -23,6 +25,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
 
     private static final long NANOS_PER_TICK = 50_000_000L;
+    private static final String RELOAD_PERMISSION = "explosionnerf.reload";
+    private static final String NO_PERMISSION_MESSAGE = "You do not have permission to use this command.";
+    private static final String USAGE_MESSAGE = "Usage: /explosionnerf reload";
+    private static final String RELOADED_MESSAGE = "ExplosionNerf config reloaded.";
 
     private final Map<AnchorLocation, Long> activeRespawnAnchorExplosions = new ConcurrentHashMap<>();
 
@@ -44,16 +50,41 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
     }
 
     private void loadSettings() {
-        reloadConfig();
-
-        endCrystalMultiplier = Math.max(0.0D, getConfig().getDouble("end-crystal-multiplier", 0.5D));
-        respawnAnchorMultiplier = Math.max(0.0D, getConfig().getDouble("respawn-anchor-multiplier", 0.5D));
+        endCrystalMultiplier = clampMultiplier(getConfig().getDouble("end-crystal-multiplier", 0.5D));
+        respawnAnchorMultiplier = clampMultiplier(getConfig().getDouble("respawn-anchor-multiplier", 0.5D));
 
         double detectRadius = Math.max(0.0D, getConfig().getDouble("respawn-anchor-detect-radius", 6.0D));
         respawnAnchorDetectRadiusSquared = detectRadius * detectRadius;
 
         long recordTicks = Math.max(1L, getConfig().getLong("respawn-anchor-record-ticks", 10L));
         respawnAnchorRecordWindowNanos = recordTicks * NANOS_PER_TICK;
+        cleanupExpiredRecords(System.nanoTime());
+    }
+
+    private double clampMultiplier(double multiplier) {
+        return Math.max(0.0D, Math.min(1.0D, multiplier));
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!command.getName().equalsIgnoreCase("explosionnerf")) {
+            return false;
+        }
+
+        if (!sender.hasPermission(RELOAD_PERMISSION)) {
+            sender.sendMessage(NO_PERMISSION_MESSAGE);
+            return true;
+        }
+
+        if (args.length != 1 || !args[0].equalsIgnoreCase("reload")) {
+            sender.sendMessage(USAGE_MESSAGE);
+            return true;
+        }
+
+        reloadConfig();
+        loadSettings();
+        sender.sendMessage(RELOADED_MESSAGE);
+        return true;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
