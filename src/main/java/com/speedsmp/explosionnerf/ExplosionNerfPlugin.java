@@ -15,7 +15,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -25,8 +24,7 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
 
     private static final long NANOS_PER_TICK = 50_000_000L;
 
-    private final Map<AnchorLocation, Long> pendingRespawnAnchorInteractions = new ConcurrentHashMap<>();
-    private final Map<AnchorLocation, Long> recentRespawnAnchorExplosions = new ConcurrentHashMap<>();
+    private final Map<AnchorLocation, Long> activeRespawnAnchorExplosions = new ConcurrentHashMap<>();
 
     private double endCrystalMultiplier;
     private double respawnAnchorMultiplier;
@@ -42,8 +40,7 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        pendingRespawnAnchorInteractions.clear();
-        recentRespawnAnchorExplosions.clear();
+        activeRespawnAnchorExplosions.clear();
     }
 
     private void loadSettings() {
@@ -55,7 +52,7 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
         double detectRadius = Math.max(0.0D, getConfig().getDouble("respawn-anchor-detect-radius", 6.0D));
         respawnAnchorDetectRadiusSquared = detectRadius * detectRadius;
 
-        long recordTicks = Math.max(1L, getConfig().getLong("respawn-anchor-record-ticks", 5L));
+        long recordTicks = Math.max(1L, getConfig().getLong("respawn-anchor-record-ticks", 10L));
         respawnAnchorRecordWindowNanos = recordTicks * NANOS_PER_TICK;
     }
 
@@ -93,26 +90,7 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
 
         long now = System.nanoTime();
         cleanupExpiredRecords(now);
-        pendingRespawnAnchorInteractions.put(AnchorLocation.from(clickedBlock), now);
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onRespawnAnchorExplode(BlockExplodeEvent event) {
-        Block explodingBlock = event.getBlock();
-        if (explodingBlock.getType() != Material.RESPAWN_ANCHOR) {
-            return;
-        }
-
-        long now = System.nanoTime();
-        cleanupExpiredRecords(now);
-
-        AnchorLocation anchorLocation = AnchorLocation.from(explodingBlock);
-        Long pendingInteractionAt = pendingRespawnAnchorInteractions.remove(anchorLocation);
-        if (pendingInteractionAt == null || now - pendingInteractionAt > respawnAnchorRecordWindowNanos) {
-            return;
-        }
-
-        recentRespawnAnchorExplosions.put(anchorLocation, now);
+        activeRespawnAnchorExplosions.put(AnchorLocation.from(clickedBlock), now);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -148,10 +126,10 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
         }
 
         UUID worldId = world.getUID();
-        for (Map.Entry<AnchorLocation, Long> entry : recentRespawnAnchorExplosions.entrySet()) {
+        for (Map.Entry<AnchorLocation, Long> entry : activeRespawnAnchorExplosions.entrySet()) {
             long recordedAt = entry.getValue();
             if (now - recordedAt > respawnAnchorRecordWindowNanos) {
-                recentRespawnAnchorExplosions.remove(entry.getKey(), recordedAt);
+                activeRespawnAnchorExplosions.remove(entry.getKey(), recordedAt);
                 continue;
             }
 
@@ -169,8 +147,7 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
     }
 
     private void cleanupExpiredRecords(long now) {
-        cleanupExpiredRecords(pendingRespawnAnchorInteractions, now);
-        cleanupExpiredRecords(recentRespawnAnchorExplosions, now);
+        cleanupExpiredRecords(activeRespawnAnchorExplosions, now);
     }
 
     private void cleanupExpiredRecords(Map<AnchorLocation, Long> records, long now) {
