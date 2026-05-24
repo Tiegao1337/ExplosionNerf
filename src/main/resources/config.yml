@@ -1,4 +1,4 @@
-end-crystal-multiplier: 0.5
-respawn-anchor-multiplier: 0.5
+end-crystal-multiplier: 0.0
+respawn-anchor-multiplier: 0.0
 respawn-anchor-detect-radius: 6.0
 respawn-anchor-record-ticks: 10

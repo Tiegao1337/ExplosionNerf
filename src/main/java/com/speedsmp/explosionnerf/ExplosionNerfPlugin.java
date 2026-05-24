@@ -50,8 +50,8 @@ public final class ExplosionNerfPlugin extends JavaPlugin implements Listener {
     }
 
     private void loadSettings() {
-        endCrystalMultiplier = clampMultiplier(getConfig().getDouble("end-crystal-multiplier", 0.5D));
-        respawnAnchorMultiplier = clampMultiplier(getConfig().getDouble("respawn-anchor-multiplier", 0.5D));
+        endCrystalMultiplier = clampMultiplier(getConfig().getDouble("end-crystal-multiplier", 0.0D));
+        respawnAnchorMultiplier = clampMultiplier(getConfig().getDouble("respawn-anchor-multiplier", 0.0D));
 
         double detectRadius = Math.max(0.0D, getConfig().getDouble("respawn-anchor-detect-radius", 6.0D));
         respawnAnchorDetectRadiusSquared = detectRadius * detectRadius;
